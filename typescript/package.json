@@ -1,0 +1,35 @@
+{
+  "name": "toll-fee-calculator",
+  "version": "1.0.0",
+  "description": "A toll fee calculator for Gothenburg congestion tax",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "dev": "vite",
+    "build:web": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.24",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "autoprefixer": "^10.4.18",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "postcss": "^8.4.35",
+    "prettier": "^3.2.5",
+    "tailwindcss": "^3.4.1",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.4"
+  }
+}
