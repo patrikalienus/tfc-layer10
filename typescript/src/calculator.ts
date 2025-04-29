@@ -1,104 +1,165 @@
 import { Vehicle } from './vehicle';
 
-const TollFreeVehicles = Object.freeze({
-    'MOTORBIKE': 'Motorbike',
-    'TRACTOR': 'Tractor',
-    'EMERGENCY': 'Emergency',
-    'DIPLOMAT': 'Diplomat',
-    'FOREIGN': 'Foreign',
-    'MILITARY': 'Military'
-});
+export type VehicleType = 'Motorbike' | 'Tractor' | 'Emergency' | 'Diplomat' | 'Lorry' | 'Bus' | 'Car';
 
 /**
- * Calculate the total toll fee for one day.
- * 
- * @param {Vehicle} vehicle The vehicle.
- * @param {...Date} dates Date and time of all passages on one day.
- * @return {number} The total toll fee for that day.
+ * List of vehicle types that are exempt from toll fees.
  */
-const getTollFee = (vehicle?: Vehicle, ...dates: any[]): unknown => {
-    var intervalStart = dates[0];
-    var totalFee: number | undefined = undefined;
+const TollFreeVehicles: readonly VehicleType[] = [
+    'Motorbike',
+    'Tractor',
+    'Emergency',
+    'Diplomat'
+] as const;
 
-    for (const date of dates) {
-        var m = Math.floor((date - intervalStart) / (1000 * 60));
-        var nextFee = tollFeePassage(date, vehicle);
-        var tempFee = tollFeePassage(intervalStart, vehicle);
+/**
+ * Main calculator class that handles all toll fee calculations.
+ * Needs Time of passage, Vehicle type. Day of week, Special dates (holidays, July)
+ */
+export class TollFeeCalculator {
+    /**
+     * Calculates the total toll fee.
+     * Implements the 60-minute rule and maximum daily fee cap.
+     * 
+     * @param vehicle - The vehicle passing through the toll
+     * @param dates - Array of passage times for the day
+     * @returns Total toll fee for the day (capped at 60 SEK)
+     */
+    public calculateTollFee(vehicle: Vehicle, dates: Date[]): number {
+        if (dates.length === 0) return 0;
+        
+        // Sort dates chronologically
+        const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+        let intervalStart = sortedDates[0];
+        let totalFee = 0;
+        let highestFeeInInterval = 0;
 
-        if (m <= 60) {
-            if (totalFee > 0) totalFee -= tempFee;
-            if (nextFee >= tempFee) tempFee = nextFee;
-            totalFee += tempFee;
-        } else {
-            totalFee += nextFee;
+        for (const date of sortedDates) {
+            const minutes = Math.floor((date.getTime() - intervalStart.getTime()) / (1000 * 60));
+            const currentFee = this.getTollFeeForPassage(date, vehicle);
+            
+            console.log(`Date: ${date.toLocaleString()}, Fee: ${currentFee}`);
+
+            // Set which fee to add.
+            if (minutes <= 60) {
+                highestFeeInInterval = Math.max(highestFeeInInterval, currentFee);
+                console.log(`Within 60 minutes, highest fee so far: ${highestFeeInInterval}`);
+            } else {
+                totalFee += highestFeeInInterval;
+                console.log(`New interval, adding ${highestFeeInInterval} to total (now ${totalFee})`);
+                highestFeeInInterval = currentFee;
+                intervalStart = date;
+            }
         }
+        
+        totalFee += highestFeeInInterval;
+        console.log(`Final total: ${totalFee}`);
+        return Math.min(totalFee, 60);
     }
 
-    if (totalFee > 60) totalFee = 60;
-    return totalFee;
-
-    function isTollFreeVehicle(vehicle: any) {
-        if (vehicle == null) return false;
+    /**
+     * Checks if a vehicle is exempt from toll fees.
+     * 
+     * @param vehicle - The vehicle to check
+     * @returns true if the vehicle is toll-free, false otherwise
+     */
+    private isTollFreeVehicle(vehicle: Vehicle): boolean {
+        if (!vehicle) return false;
     
-        let vehicleType = vehicle.getType();
-        return vehicleType === TollFreeVehicles.MOTORBIKE ||
-               vehicleType === TollFreeVehicles.TRACTOR ||
-               vehicleType === TollFreeVehicles.EMERGENCY ||
-               vehicleType === TollFreeVehicles.DIPLOMAT ||
-               vehicleType === TollFreeVehicles.FOREIGN ||
-               vehicleType === TollFreeVehicles.MILITARY;
+        const vehicleType = vehicle.getType();
+        return Object.values(TollFreeVehicles).includes(vehicleType);
     }
     
     /**
-     * Return the fee for the passage at `date`.
+     * Determines the toll fee for a single passage based on the time of day.
+     * Implements fee schedule from Transportstyrelsen.
      * 
-     * @param {Date} date The passage date.
-     * @param {Vehicle} vehicle The vehicle.
-     * @return {number} The toll fee for the passage.
+     * @param date - The date and time of passage
+     * @param vehicle - The vehicle passing through
+     * @returns The toll fee for the passage
      */
-    function tollFeePassage(date?: Date, vehicle?: Vehicle) {
-        var h;
-        
-        if (isTollFreeDate(date) || isTollFreeVehicle(vehicle)) return 0;
+    private getTollFeeForPassage(date: Date, vehicle: Vehicle): number {
+        if (this.isTollFreeDate(date) || this.isTollFreeVehicle(vehicle)) {
+            return 0;
+        }
 
-        h = date.getHours();
-        m = date.getMinutes();
+        // Use local time
+        const hour = date.getHours();
+        const minute = date.getMinutes();
     
-        if (h === 6 && m >= 0 && m <= 29) return 9;
-        else if (h === 6 && m >= 30 && m <= 59) return 16;
-        else if (h === 7 && m >= 0 && m <= 59) return 22;
-        else if (h === 8 && m >= 0 && m <= 29) return 16;
-        else if (h >= 8 && h <= 14 && m >= 30 && m <= 59) return 9;
-        else if (h === 15 && m >= 0 && m <= 29) return 16;
-        else if (h === 15 && m >= 0 || h === 16 && m <= 59) return 22;
-        else if (h === 17 && m >= 0 && m <= 59) return 16;
-        else if (h === 18 && m >= 0 && m <= 29) return 9;
-        else return 0;
+        if (hour === 6 && minute >= 0 && minute <= 29) return 9;    // 06:00–06:29
+        else if (hour === 6 && minute >= 30 && minute <= 59) return 16;  // 06:30–06:59
+        else if (hour === 7 && minute >= 0 && minute <= 59) return 22;  // 07:00–07:59
+        else if (hour === 8 && minute >= 0 && minute <= 29) return 16;  // 08:00–08:29
+        else if (hour >= 8 && hour <= 14) return 9;  // 08:30–14:59
+        else if (hour === 15 && minute >= 0 && minute <= 29) return 16;  // 15:00–15:29
+        else if (hour === 15 && minute >= 30) return 22;  // 15:30–15:59
+        else if (hour === 16) return 22;  // 16:00–16:59
+        else if (hour === 17 && minute >= 0 && minute <= 59) return 16;  // 17:00–17:59
+        else if (hour === 18 && minute >= 0 && minute <= 29) return 9;  // 18:00–18:29
+        else return 0;  // 18:30–05:59
     }
     
-    function isTollFreeDate(date: number | any) {
-        let year = date.getYear();
-        let month = date.getMonth();
-        let day = date.getDate();
+    /**
+     * Checks if a date is toll-free.
+     * Dates are toll-free on:
+     * - Weekends (Saturday and Sunday)
+     * - The month of July
+     * - Public holidays
+     * 
+     * @param date - The date to check
+     * @returns true if the date is toll-free, false otherwise
+     */
+    private isTollFreeDate(date: Date): boolean {
+        // Use local time
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) return true; // Sunday or Saturday
     
-        let dayOfWeek = date.getDay();
-        if (dayOfWeek === 5 || dayOfWeek === 6) return true;
+        const month = date.getMonth();
+        if (month === 6) return true; // July
     
-        if (year === 2018) {
-            if (month === 1 && (day === 1 || day === 5 || day === 6) ||
-                month === 3 && (day === 29 || day === 30) ||
-                month === 4 && (day === 2 || day === 30) ||
-                month === 5 && (day === 1 || day === 9 || day === 10) ||
-                month === 6 && (day === 5 || day === 6 || day === 22) ||
-                month === 7 ||
-                month === 11 && day === 2 ||
-                month === 12 && (day === 24 || day === 25 || day === 26 || day === 31)) {
-                return true;
-            }
-        }
+        const year = date.getFullYear();
+        const day = date.getDate();
     
-        return false;
+        // Check for holidays
+        const holidays = [
+            [0, 1],
+            [4, 1],
+            [5, 6],
+            [10, 2],
+            [11, 24],
+            [11, 25],
+            [11, 26],
+            [11, 31]
+        ];
+    
+        return holidays.some(([m, d]) => month === m && day === d);
+    }
+
+    /**
+     * Calculates the date of Easter for a given year.
+     * 
+     * @param year - The year to calculate Easter for
+     * @returns The date of Easter Sunday
+     */
+    private calculateEaster(year: number): Date {
+        // This is Gauss's Easter algorithm. I don't know how this works, but it does and everyone uses it so...
+        
+        const a = year % 19;
+        const b = Math.floor(year / 100);
+        const c = year % 100;
+        const d = Math.floor(b / 4);
+        const e = b % 4;
+        const f = Math.floor((b + 8) / 25);
+        const g = Math.floor((b - f + 1) / 3);
+        const h = (19 * a + b - d - g + 15) % 30;
+        const i = Math.floor(c / 4);
+        const k = c % 4;
+        const l = (32 + 2 * e + 2 * i - h - k) % 7;
+        const m = Math.floor((a + 11 * h + 22 * l) / 451);
+        const month = Math.floor((h + l - 7 * m + 114) / 31);
+        const day = ((h + l - 7 * m + 114) % 31) + 1;
+        
+        return new Date(year, month - 1, day);
     }
 }
-
-export { getTollFee };

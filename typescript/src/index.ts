@@ -1,5 +1,5 @@
-import { TollFeeCalculator } from './calculator';
-import { Car } from './vehicle';
+import { TollFeeCalculator } from './calculator.js';
+import { Car } from './vehicle.js';
 
 // Exampel
 const calculator = new TollFeeCalculator();
@@ -14,4 +14,5 @@ const dates = [
 ];
 
 const totalFee = calculator.calculateTollFee(vehicle, dates);
-console.log(`Total toll fee: ${totalFee} SEK`); 
+console.log(`Total toll fee: ${totalFee} SEK`);
+
